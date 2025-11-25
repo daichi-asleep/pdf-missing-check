@@ -1,10 +1,85 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <meta charset="UTF-8">
+  <title>PDF リスト CSV チェック</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .box { margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+    button { padding: 10px 15px; cursor: pointer; }
+    textarea { width: 100%; height: 150px; }
+  </style>
+</head>
 <body>
-<h3>PDF リスト CSV アップロード</h3>
-<form action="/upload" method="post" enctype="multipart/form-data">
-  <input type="file" name="pdfcsv" accept=".csv" required>
-  <button type="submit">アップロード & 欠け巻チェック</button>
-</form>
+
+<h2>PDF 欠け巻チェックツール</h2>
+
+<!-- CSV アップロード（既存機能） -->
+<div class="box">
+  <h3>① CSV アップロード → サーバーでチェック</h3>
+  <form action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="pdfcsv" accept=".csv" required>
+    <button type="submit">アップロード & チェック開始</button>
+  </form>
+</div>
+
+
+<!-- CSV 作成エリア（ブラウザ上で入力 → サーバーに送信 or ダウンロード） -->
+<div class="box">
+  <h3>② ブラウザで CSV を作成</h3>
+  <p>PDF のファイル名を1行ずつ入力してください。</p>
+  <textarea id="csvText" placeholder="例：\nA001.pdf\nA002.pdf\nA003.pdf"></textarea>
+  <br><br>
+
+  <button onclick="sendToServer()">サーバーへ送ってチェックする</button>
+  &nbsp;
+  <button onclick="downloadCSV()">CSV をダウンロード</button>
+</div>
+
+<script>
+  // CSV をダウンロードする処理
+  function downloadCSV() {
+    const text = document.getElementById("csvText").value.trim();
+    if (!text) {
+      alert("CSV の内容が空です。");
+      return;
+    }
+
+    const blob = new Blob([text], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pdf_list.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // CSV をサーバーに直接 POST → チェック開始
+  async function sendToServer() {
+    const text = document.getElementById("csvText").value.trim();
+    if (!text) {
+      alert("CSV の内容が空です。");
+      return;
+    }
+
+    const formData = new FormData();
+    const blob = new Blob([text], { type: "text/csv" });
+
+    // サーバー側で受け取る名前は "pdfcsv"
+    formData.append("pdfcsv", blob, "input.csv");
+
+    const res = await fetch("/upload", {
+      method: "POST",
+      body: formData
+    });
+
+    if (res.redirected) {
+      window.location.href = res.url;
+    } else {
+      alert("サーバーへの送信に失敗しました。");
+    }
+  }
+</script>
+
 </body>
 </html>
