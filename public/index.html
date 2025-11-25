@@ -1,84 +1,78 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>PDF リスト CSV チェック</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    .box { margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
-    button { padding: 10px 15px; cursor: pointer; }
-    textarea { width: 100%; height: 150px; }
-  </style>
+<meta charset="utf-8" />
+<title>PDF Missing Checker</title>
 </head>
+
 <body>
+<h2>PDF ファイル名抽出 → CSV 作成 → サーバーに送信</h2>
 
-<h2>PDF 欠け巻チェックツール</h2>
+<!-- フォルダ選択 -->
+<input type="file" id="folderPicker" webkitdirectory multiple />
+<button id="makeCsvBtn">CSV 作成</button>
 
-<!-- CSV アップロード（既存機能） -->
-<div class="box">
-  <h3>① CSV アップロード → サーバーでチェック</h3>
-  <form action="/upload" method="post" enctype="multipart/form-data">
-    <input type="file" name="pdfcsv" accept=".csv" required>
-    <button type="submit">アップロード & チェック開始</button>
-  </form>
-</div>
+<!-- CSV ダウンロード用 -->
+<a id="downloadLink" style="display:none;">CSV をダウンロード</a>
 
+<hr>
 
-<!-- CSV 作成エリア（ブラウザ上で入力 → サーバーに送信 or ダウンロード） -->
-<div class="box">
-  <h3>② ブラウザで CSV を作成</h3>
-  <p>PDF のファイル名を1行ずつ入力してください。</p>
-  <textarea id="csvText" placeholder="例：\nA001.pdf\nA002.pdf\nA003.pdf"></textarea>
-  <br><br>
+<!-- CSV をサーバーへ送信 -->
+<h3>CSV をサーバーへ送信して欠け巻チェック</h3>
+<button id="sendToServerBtn">サーバーへ送信</button>
 
-  <button onclick="sendToServer()">サーバーへ送ってチェックする</button>
-  &nbsp;
-  <button onclick="downloadCSV()">CSV をダウンロード</button>
-</div>
+<pre id="result"></pre>
 
 <script>
-  // CSV をダウンロードする処理
-  function downloadCSV() {
-    const text = document.getElementById("csvText").value.trim();
-    if (!text) {
-      alert("CSV の内容が空です。");
-      return;
+let csvContent = "";
+let csvBlob = null;
+
+document.getElementById("makeCsvBtn").onclick = () => {
+    const files = document.getElementById("folderPicker").files;
+    const pdfList = [];
+
+    for (const f of files) {
+        if (f.name.toLowerCase().endsWith(".pdf")) {
+            pdfList.push(f.name);
+        }
     }
 
-    const blob = new Blob([text], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "pdf_list.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  // CSV をサーバーに直接 POST → チェック開始
-  async function sendToServer() {
-    const text = document.getElementById("csvText").value.trim();
-    if (!text) {
-      alert("CSV の内容が空です。");
-      return;
+    if (pdfList.length === 0) {
+        alert("PDF が見つかりません");
+        return;
     }
 
+    csvContent = pdfList.join("\n");
+    csvBlob = new Blob([csvContent], { type: "text/csv" });
+
+    // ダウンロードボタン生成
+    const url = URL.createObjectURL(csvBlob);
+    const link = document.getElementById("downloadLink");
+    link.href = url;
+    link.download = "pdf_list.csv";
+    link.style.display = "inline-block";
+    link.textContent = "CSV をダウンロード";
+
+    alert("CSV を作成しました（ダウンロード or サーバー送信できます）");
+};
+
+// サーバーへ送信
+document.getElementById("sendToServerBtn").onclick = async () => {
+    if (!csvBlob) {
+        alert("先に CSV を作成してください");
+        return;
+    }
     const formData = new FormData();
-    const blob = new Blob([text], { type: "text/csv" });
-
-    // サーバー側で受け取る名前は "pdfcsv"
-    formData.append("pdfcsv", blob, "input.csv");
+    formData.append("pdfcsv", csvBlob, "pdf_list.csv");
 
     const res = await fetch("/upload", {
-      method: "POST",
-      body: formData
+        method: "POST",
+        body: formData
     });
 
-    if (res.redirected) {
-      window.location.href = res.url;
-    } else {
-      alert("サーバーへの送信に失敗しました。");
-    }
-  }
+    const text = await res.text();
+    document.getElementById("result").textContent = text;
+};
 </script>
 
 </body>
